@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome | Login System</title>
+
+  <style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Poppins", sans-serif; }
+
+  body {
+    min-height: 100vh;
+    /* Dark overlay + your image (.jpeg) */
+    background:
+      linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)),
+      url("/background.jpeg") center center / cover no-repeat fixed;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+  }
+
+  .container {
+    width: 80%;
+    max-width: 1100px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 20px;
+    padding: 50px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    backdrop-filter: blur(2px);
+  }
+
+  .welcome { flex: 1; padding-right: 50px; }
+  .welcome h1 { font-size: 3rem; margin-bottom: 20px; color: #fffffe; }
+  .welcome p { font-size: 1rem; line-height: 1.5; color: #e6e6e6; }
+
+  .login-box { flex: 1; background: rgba(255,255,255,0.08); padding: 30px; border-radius: 15px; text-align: center; }
+  .login-box h2 { margin-bottom: 25px; font-size: 1.8rem; }
+
+  .social-btn { display:block; width:80%; margin:10px auto; padding:12px; border:none; border-radius:25px; cursor:pointer; font-size:1rem; transition:.2s; }
+  .google { background:#db4437; color:#fff; }
+  .linkedin { background:#0077b5; color:#fff; }
+  .google:hover { transform: translateY(-1px); filter: brightness(0.95); }
+  .linkedin:hover { transform: translateY(-1px); filter: brightness(0.95); }
+</style>
+
+</head>
+
+<body>
+  <div class="container">
+    <div class="welcome">
+      <h1>Welcome!</h1>
+      <p>
+        Sign in to your account using Google or Linkedin.
+      </p>
+    </div>
+
+    <div class="login-box">
+      <h2>Sign In</h2>
+
+      <a href="/auth/google">
+        <button class="social-btn google">Continue with Google</button>
+      </a>
+
+      <a href="/auth/linkedin">
+        <button class="social-btn linkedin">Continue with LinkedIn</button>
+      </a>
+    </div>
+  </div>
+</body>
+</html>

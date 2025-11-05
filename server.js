@@ -1,0 +1,193 @@
+// Import packages
+import express from "express";
+import session from "express-session";
+import passport from "passport";
+import dotenv from "dotenv";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import OAuth2Strategy from "passport-oauth2";
+import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
+
+dotenv.config();
+
+// __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Initialize app
+const app = express();
+
+// Simple in-memory "DB" (demo only)
+const users = new Map();
+
+// Views
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views"));
+
+// Sessions
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true } // set secure:true in HTTPS
+  })
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(express.static(path.join(__dirname, "public")));
+
+
+// Session <-> user mapping
+passport.serializeUser((user, done) => done(null, user._key));
+passport.deserializeUser((key, done) => done(null, users.get(key) || null));
+
+/* =================== GOOGLE (OAuth 2.0) =================== */
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: process.env.GOOGLE_CALLBACK_URL
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        const key = `google|${profile.id}`;
+        const user = {
+          _key: key,
+          provider: "google",
+          id: profile.id,
+          displayName: profile.displayName,
+          emails: profile.emails?.map(e => e.value) || [],
+          photos: profile.photos?.map(p => p.value) || []
+        };
+        users.set(key, user);
+        done(null, user);
+      } catch (e) {
+        done(e);
+      }
+    }
+  )
+);
+
+/* =================== LINKEDIN (OAuth2 + OIDC UserInfo) =================== */
+/* Uses OAuth 2.0 to get an access token, then calls LinkedIn's OIDC userinfo.
+   Works with the "Sign in with LinkedIn using OpenID Connect" product,
+   and avoids strict ID token issuer checks. */
+passport.use(
+  "linkedin",
+  new OAuth2Strategy(
+    {
+      authorizationURL: "https://www.linkedin.com/oauth/v2/authorization",
+      tokenURL: "https://www.linkedin.com/oauth/v2/accessToken",
+      clientID: process.env.LINKEDIN_CLIENT_ID,
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
+      callbackURL:
+        process.env.LINKEDIN_CALLBACK_URL ||
+        "http://localhost:3000/auth/linkedin/callback",
+      // we'll request scopes in the authenticate() call
+      state: true
+    },
+    // verify(accessToken, refreshToken, profile, done)
+    async (accessToken, refreshToken, _profile, done) => {
+      try {
+        // Fetch OIDC userinfo with the access token
+        const resp = await fetch("https://api.linkedin.com/v2/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        if (!resp.ok) {
+          const text = await resp.text();
+          return done(new Error(`LinkedIn userinfo failed: ${resp.status} ${text}`));
+        }
+
+        const data = await resp.json();
+        // Expected fields: sub (id), name, given_name, family_name, email, picture, email_verified
+        const id = data.sub || data.id;
+        if (!id) return done(new Error("LinkedIn userinfo missing 'sub'"));
+
+        const displayName =
+          data.name ||
+          `${data.given_name || ""} ${data.family_name || ""}`.trim() ||
+          "LinkedIn User";
+
+        const emails = [];
+        if (data.email) emails.push(data.email);
+
+        const photos = [];
+        if (data.picture) photos.push(data.picture);
+
+        const key = `linkedin|${id}`;
+        const user = { _key: key, provider: "linkedin", id, displayName, emails, photos };
+        users.set(key, user);
+        return done(null, user);
+      } catch (err) {
+        return done(err);
+      }
+    }
+  )
+);
+
+// Auth guard
+function ensureAuthed(req, res, next) {
+  if (req.isAuthenticated()) return next();
+  res.redirect("/");
+}
+
+/* =================== ROUTES =================== */
+app.get("/", (req, res) => res.render("index", { user: req.user }));
+
+app.get("/profile", ensureAuthed, (req, res) => {
+  res.render("profile", { user: req.user });
+});
+
+app.get("/logout", (req, res, next) => {
+  req.logout(err => {
+    if (err) return next(err);
+    req.session.destroy(() => res.redirect("/"));
+  });
+});
+
+/* ---- Google ---- */
+app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+app.get(
+  "/auth/google/callback",
+  passport.authenticate("google", { failureRedirect: "/error" }),
+  (req, res) => res.redirect("/profile")
+);
+
+/* ---- LinkedIn (OAuth2 + userinfo) ---- */
+app.get(
+  "/auth/linkedin",
+  passport.authenticate("linkedin", { scope: ["openid", "profile", "email"] })
+);
+
+// Custom callback to surface any errors clearly
+app.get("/auth/linkedin/callback", (req, res, next) => {
+  passport.authenticate("linkedin", (err, user, info) => {
+    if (err) {
+      console.error("LinkedIn auth error:", err);
+      return res.status(500).render("error", { message: String(err) });
+    }
+    if (!user) {
+      console.error("LinkedIn auth failed:", info);
+      return res
+        .status(401)
+        .render("error", { message: (info && info.message) || "Login failed." });
+    }
+    req.logIn(user, loginErr => {
+      if (loginErr) return next(loginErr);
+      return res.redirect("/profile");
+    });
+  })(req, res, next);
+});
+
+app.get("/error", (req, res) => res.status(401).render("error", { message: "Login failed." }));
+
+/* =================== START =================== */
+app.listen(process.env.PORT, () =>
+  console.log(`✅ Server running on http://localhost:${process.env.PORT}`)
+);

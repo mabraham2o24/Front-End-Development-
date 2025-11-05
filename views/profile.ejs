@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Your Account</title>
+
+  <style>
+    :root{
+      --bg: #0b1220;
+      --card: #111a2b;
+      --muted: #9fb0c9;
+      --accent: #ff6a00;
+      --ring: rgba(255,255,255,.08);
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; min-height:100vh;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #1b2640 0%, transparent 60%),
+        radial-gradient(900px 600px at 110% 110%, #14223b 0%, transparent 60%),
+        var(--bg);
+      color:#e8eef8;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+      display:flex; align-items:center; justify-content:center; padding:32px;
+    }
+    .shell{ width:min(100%, 960px); }
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;
+    }
+    .topbar a{
+      color:#cfe2ff; text-decoration:none; font-weight:600; padding:8px 14px; border-radius:10px;
+      border:1px solid var(--ring);
+    }
+    .topbar a:hover{ background:rgba(255,255,255,.05); }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      border:1px solid var(--ring);
+      border-radius:20px; overflow:hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,.35);
+      display:grid; grid-template-columns: 320px 1fr;
+    }
+    @media (max-width: 780px){ .card{ grid-template-columns: 1fr; } }
+
+    .side{
+      padding:28px; border-right:1px solid var(--ring);
+      display:flex; flex-direction:column; gap:18px; align-items:center; justify-content:center;
+      background:
+        radial-gradient(380px 260px at 50% 0%, rgba(255,255,255,.06) 0%, transparent 70%),
+        var(--card);
+    }
+    .avatar{
+      width:120px; height:120px; border-radius:50%;
+      object-fit:cover; border:2px solid var(--ring); box-shadow:0 6px 18px rgba(0,0,0,.4);
+    }
+    .name{ font-size:1.6rem; font-weight:800; text-align:center; line-height:1.2; }
+    .provider{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px; border:1px solid var(--ring);
+      color:#dbe7ff; background:rgba(255,255,255,.03); font-weight:600;
+    }
+    .provider.google::before{ content:""; width:10px; height:10px; border-radius:50%; background:#db4437; }
+    .provider.linkedin::before{ content:""; width:10px; height:10px; border-radius:50%; background:#0077b5; }
+
+    .main{ padding:28px; background: rgba(17,26,43,.6); }
+    .section{ margin-bottom:22px; }
+    .section h3{ margin:0 0 10px; font-size:1rem; letter-spacing:.4px; color:#c7d7ee; text-transform:uppercase; }
+    .kv{ display:grid; grid-template-columns: 160px 1fr; gap:8px 14px; }
+    .kv div{ padding:10px 12px; border:1px solid var(--ring); border-radius:12px; background:rgba(255,255,255,.02); color:#dbe7ff; }
+    .muted{ color:var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div class="muted">You’re signed in</div>
+      <div class="actions">
+        <a href="/logout">Log out</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <!-- Left: avatar + quick info -->
+      <aside class="side">
+        <% if (user && user.photos && user.photos[0]) { %>
+          <img class="avatar" src="<%= user.photos[0] %>" alt="avatar">
+        <% } else { %>
+          <img class="avatar" src="https://ui-avatars.com/api/?name=<%= encodeURIComponent(user?.displayName || 'User') %>&background=2b3a5a&color=ffffff" alt="avatar">
+        <% } %>
+
+        <div class="name"><%= user?.displayName || 'User' %></div>
+        <div class="provider <%= (user?.provider || '') %>">
+          <%= (user?.provider === 'google' ? 'Google' : user?.provider === 'linkedin' ? 'LinkedIn' : 'Provider') %>
+        </div>
+      </aside>
+
+      <!-- Right: details -->
+      <section class="main">
+        <div class="section">
+          <h3>Account</h3>
+          <div class="kv">
+            <div class="muted">Display Name</div>
+            <div><%= user?.displayName || '—' %></div>
+
+            <div class="muted">Email(s)</div>
+            <div>
+              <% if (user && user.emails && user.emails.length) { %>
+                <%= user.emails.join(", ") %>
+              <% } else { %>
+                <span class="muted">No email returned by provider</span>
+              <% } %>
+            </div>
+
+            <div class="muted">Provider</div>
+            <div><%= user?.provider || '—' %></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>Session</h3>
+          <div class="kv">
+            <div class="muted">Status</div>
+            <div>Active</div>
+
+            <div class="muted">Security</div>
+            <div>Signed via OAuth</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
