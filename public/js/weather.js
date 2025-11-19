@@ -83,8 +83,7 @@ function renderHistory(records) {
   records.forEach((record) => {
     const tr = document.createElement("tr");
 
-    const city =
-      record.city || record.name || record.location || "Unknown";
+    const city = record.city || record.name || record.location || "Unknown";
 
     const temp =
       record.temperature ??
@@ -117,9 +116,7 @@ function renderHistory(records) {
     condTd.textContent = condition;
 
     const fetchedTd = document.createElement("td");
-    fetchedTd.textContent = fetched
-      ? new Date(fetched).toLocaleString()
-      : "";
+    fetchedTd.textContent = fetched ? new Date(fetched).toLocaleString() : "";
 
     const actionsTd = document.createElement("td");
     actionsTd.className = "actions-cell";
@@ -203,6 +200,7 @@ async function deleteWeather(id) {
 async function refreshWeather(id, city) {
   try {
     setStatus("Refreshing weather for " + city + "...");
+    // Simple approach: delete old record + create a new one via fetch endpoint
     await fetchJSON(`/api/weather/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
@@ -226,10 +224,4 @@ if (searchForm) {
 document.addEventListener("DOMContentLoaded", loadHistory);
 
 // ---- Exports for Jest tests ----
-export {
-  setStatus,
-  renderLatest,
-  renderHistory,
-  handleSearch,
-  deleteWeather,
-};
+export { setStatus, renderLatest, renderHistory, handleSearch, deleteWeather };
