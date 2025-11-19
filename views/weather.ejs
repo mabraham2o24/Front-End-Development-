@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Weather Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: #1e293b;
+        color: #e5e7eb;
+        display: flex;
+        min-height: 100vh;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .page-wrapper {
+        width: 100%;
+        max-width: 1100px;
+        margin: 24px;
+        padding: 32px;
+        border-radius: 16px;
+        background: rgba(15, 23, 42, 0.95);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      }
+
+      .header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .header-row h1 {
+        margin: 0;
+        font-size: 28px;
+        color: #f97316;
+      }
+
+      .header-row .user-info {
+        font-size: 14px;
+        text-align: right;
+        color: #cbd5f5;
+      }
+
+      .btn {
+        border: none;
+        border-radius: 999px;
+        padding: 10px 18px;
+        font-size: 14px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: transform 0.1s ease, box-shadow 0.1s ease,
+          background 0.15s ease;
+      }
+
+      .btn-primary {
+        background: #f97316;
+        color: white;
+        box-shadow: 0 8px 20px rgba(249, 115, 22, 0.35);
+      }
+
+      .btn-primary:hover {
+        background: #ea580c;
+        transform: translateY(-1px);
+      }
+
+      .btn-secondary {
+        background: #0ea5e9;
+        color: #0b1120;
+        box-shadow: 0 8px 20px rgba(14, 165, 233, 0.4);
+      }
+
+      .btn-secondary:hover {
+        background: #0284c7;
+        transform: translateY(-1px);
+      }
+
+      .btn-danger {
+        background: #ef4444;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #dc2626;
+      }
+
+      .top-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+        gap: 24px;
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        background: rgba(15, 23, 42, 0.9);
+        border-radius: 16px;
+        padding: 20px 20px 18px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+        color: #e5e7eb;
+      }
+
+      .field-label {
+        font-size: 13px;
+        color: #9ca3af;
+        margin-bottom: 4px;
+      }
+
+      .input-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        padding: 9px 12px;
+        background: rgba(15, 23, 42, 0.7);
+        color: #e5e7eb;
+        outline: none;
+      }
+
+      input[type="text"]::placeholder {
+        color: #6b7280;
+      }
+
+      .hint {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 8px;
+      }
+
+      .latest-card {
+        margin-top: 14px;
+        padding: 14px 14px 12px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #0ea5e9, #22c55e);
+        color: #0b1120;
+        display: none; /* shown via JS */
+      }
+
+      .latest-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+
+      .latest-city {
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .latest-temp {
+        font-size: 28px;
+        font-weight: 700;
+      }
+
+      .latest-meta {
+        margin-top: 6px;
+        font-size: 13px;
+      }
+
+      .table-wrapper {
+        overflow-x: auto;
+        margin-top: 6px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        color: #e5e7eb;
+      }
+
+      thead {
+        background: rgba(15, 23, 42, 0.9);
+      }
+
+      th,
+      td {
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      tbody tr:hover {
+        background: rgba(30, 64, 175, 0.3);
+      }
+
+      .actions-cell {
+        display: flex;
+        gap: 6px;
+      }
+
+      .tag {
+        display: inline-block;
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.5);
+      }
+
+      .status {
+        margin-top: 10px;
+        font-size: 12px;
+      }
+
+      .status.error {
+        color: #fca5a5;
+      }
+
+      .status.ok {
+        color: #bbf7d0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="page-wrapper">
+      <div class="header-row">
+        <div>
+          <h1>Weather Dashboard</h1>
+          <div class="hint">
+            Search for a city, save results, and manage your weather history.
+          </div>
+        </div>
+
+        <div class="user-info">
+          <div>Signed in as</div>
+          <div><strong><%= user?.displayName || "User" %></strong></div>
+          <div class="top-actions">
+            <a href="/profile">
+              <button class="btn btn-secondary" type="button">Back to Profile</button>
+            </a>
+            <a href="/logout">
+              <button class="btn" type="button">Logout</button>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <!-- LEFT: Search + Latest Result -->
+        <div class="card">
+          <h2>Search Weather</h2>
+
+          <form id="search-form">
+            <div class="field-label">City</div>
+            <div class="input-row">
+              <input
+                id="city-input"
+                type="text"
+                name="city"
+                placeholder="e.g., Philadelphia"
+                required
+              />
+              <button class="btn btn-primary" type="submit">Fetch &amp; Save</button>
+            </div>
+            <div class="hint">
+              This calls your <code>POST /api/weather/fetch?city=...</code> endpoint,
+              saves to MongoDB, and updates the history.
+            </div>
+          </form>
+
+          <div id="latest-card" class="latest-card">
+            <div class="latest-header">
+              <div>
+                <div class="latest-city" id="latest-city"></div>
+                <div id="latest-conditions"></div>
+              </div>
+              <div class="latest-temp" id="latest-temp"></div>
+            </div>
+            <div class="latest-meta" id="latest-meta"></div>
+          </div>
+
+          <div id="status" class="status"></div>
+        </div>
+
+        <!-- RIGHT: History Table -->
+        <div class="card">
+          <h2>Saved Weather History</h2>
+          <div class="hint">
+            Data is coming from your <code>GET /api/weather</code> endpoint.
+          </div>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>City</th>
+                  <th>Temp</th>
+                  <th>Condition</th>
+                  <th>Fetched At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="history-body">
+                <!-- Filled by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Front-end logic for calling your API -->
+    <script src="/js/weather.js"></script>
+  </body>
+</html>

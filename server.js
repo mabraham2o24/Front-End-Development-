@@ -1,4 +1,6 @@
-// Import packages
+// ======================
+// Imports
+// ======================
 import express from "express";
 import session from "express-session";
 import passport from "passport";
@@ -9,38 +11,62 @@ import fetch from "node-fetch";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import mongoose from "mongoose";
+import cors from "cors";
+import morgan from "morgan";
+
+import weatherRouter from "./weather/routes/weatherRoutes.js";
+import { swaggerUi, swaggerSpec } from "./weather/swagger.js";
+
 dotenv.config();
 
-// __dirname for ES modules
+// ======================
+// __dirname fix for ES modules
+// ======================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ======================
 // Initialize app
+// ======================
 const app = express();
 
-// Simple in-memory "DB" (demo only)
+// Simple in-memory "DB" (demo only) for social-login users
 const users = new Map();
 
-// Views
+// ======================
+// View engine & static files
+// ======================
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
+// ======================
+// Global middleware
+// ======================
+app.use(cors());
+app.use(morgan("dev"));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
+
+// ======================
 // Sessions
+// ======================
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true } // set secure:true in HTTPS
+    cookie: { httpOnly: true }, // set secure:true in HTTPS
   })
 );
 
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(express.static(path.join(__dirname, "public")));
 
-
+// ======================
 // Session <-> user mapping
+// ======================
 passport.serializeUser((user, done) => done(null, user._key));
 passport.deserializeUser((key, done) => done(null, users.get(key) || null));
 
@@ -50,7 +76,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL
+      callbackURL: process.env.GOOGLE_CALLBACK_URL,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -60,8 +86,8 @@ passport.use(
           provider: "google",
           id: profile.id,
           displayName: profile.displayName,
-          emails: profile.emails?.map(e => e.value) || [],
-          photos: profile.photos?.map(p => p.value) || []
+          emails: profile.emails?.map((e) => e.value) || [],
+          photos: profile.photos?.map((p) => p.value) || [],
         };
         users.set(key, user);
         done(null, user);
@@ -72,7 +98,7 @@ passport.use(
   )
 );
 
-/* =================== LINKEDIN (OAuth2 + OIDC UserInfo) =================== */
+/* =================== LINKEDIN (OAuth2 + OIDC userinfo) =================== */
 /* Uses OAuth 2.0 to get an access token, then calls LinkedIn's OIDC userinfo.
    Works with the "Sign in with LinkedIn using OpenID Connect" product,
    and avoids strict ID token issuer checks. */
@@ -87,20 +113,22 @@ passport.use(
       callbackURL:
         process.env.LINKEDIN_CALLBACK_URL ||
         "http://localhost:3000/auth/linkedin/callback",
-      // we'll request scopes in the authenticate() call
-      state: true
+      // scopes are requested in the authenticate() call
+      state: true,
     },
     // verify(accessToken, refreshToken, profile, done)
     async (accessToken, refreshToken, _profile, done) => {
       try {
         // Fetch OIDC userinfo with the access token
         const resp = await fetch("https://api.linkedin.com/v2/userinfo", {
-          headers: { Authorization: `Bearer ${accessToken}` }
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
 
         if (!resp.ok) {
           const text = await resp.text();
-          return done(new Error(`LinkedIn userinfo failed: ${resp.status} ${text}`));
+          return done(
+            new Error(`LinkedIn userinfo failed: ${resp.status} ${text}`)
+          );
         }
 
         const data = await resp.json();
@@ -120,7 +148,14 @@ passport.use(
         if (data.picture) photos.push(data.picture);
 
         const key = `linkedin|${id}`;
-        const user = { _key: key, provider: "linkedin", id, displayName, emails, photos };
+        const user = {
+          _key: key,
+          provider: "linkedin",
+          id,
+          displayName,
+          emails,
+          photos,
+        };
         users.set(key, user);
         return done(null, user);
       } catch (err) {
@@ -130,28 +165,42 @@ passport.use(
   )
 );
 
+// ======================
 // Auth guard
+// ======================
 function ensureAuthed(req, res, next) {
   if (req.isAuthenticated()) return next();
   res.redirect("/");
 }
 
-/* =================== ROUTES =================== */
+// ======================
+// Routes (Pages)
+// ======================
 app.get("/", (req, res) => res.render("index", { user: req.user }));
 
+// Profile page
 app.get("/profile", ensureAuthed, (req, res) => {
   res.render("profile", { user: req.user });
 });
 
+// Weather dashboard UI (only for logged-in users)
+app.get("/weather", ensureAuthed, (req, res) => {
+  res.render("weather", { user: req.user });
+});
+
+
 app.get("/logout", (req, res, next) => {
-  req.logout(err => {
+  req.logout((err) => {
     if (err) return next(err);
     req.session.destroy(() => res.redirect("/"));
   });
 });
 
-/* ---- Google ---- */
-app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+// ---- Google ----
+app.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
 
 app.get(
   "/auth/google/callback",
@@ -159,7 +208,7 @@ app.get(
   (req, res) => res.redirect("/profile")
 );
 
-/* ---- LinkedIn (OAuth2 + userinfo) ---- */
+// ---- LinkedIn (OAuth2 + userinfo) ----
 app.get(
   "/auth/linkedin",
   passport.authenticate("linkedin", { scope: ["openid", "profile", "email"] })
@@ -178,16 +227,48 @@ app.get("/auth/linkedin/callback", (req, res, next) => {
         .status(401)
         .render("error", { message: (info && info.message) || "Login failed." });
     }
-    req.logIn(user, loginErr => {
+    req.logIn(user, (loginErr) => {
       if (loginErr) return next(loginErr);
       return res.redirect("/profile");
     });
   })(req, res, next);
 });
 
-app.get("/error", (req, res) => res.status(401).render("error", { message: "Login failed." }));
-
-/* =================== START =================== */
-app.listen(process.env.PORT, () =>
-  console.log(`✅ Server running on http://localhost:${process.env.PORT}`)
+app.get("/error", (req, res) =>
+  res.status(401).render("error", { message: "Login failed." })
 );
+
+// ======================
+// Weather API + Swagger
+// ======================
+
+// All /api/weather endpoints require login
+app.use("/api/weather", ensureAuthed, weatherRouter);
+
+// Swagger docs (public, for demo)
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// ======================
+// Start server + connect Mongo
+// ======================
+const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+(async () => {
+  try {
+    if (!MONGO_URI) {
+      throw new Error("Missing MONGO_URI or MONGODB_URI in .env");
+    }
+
+    await mongoose.connect(MONGO_URI);
+    console.log("✅ Connected to MongoDB");
+
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+      console.log(`📚 Swagger docs at http://localhost:${PORT}/docs`);
+    });
+  } catch (err) {
+    console.error("❌ Failed to start server:", err);
+    process.exit(1);
+  }
+})();

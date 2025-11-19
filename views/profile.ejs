@@ -21,16 +21,21 @@
         radial-gradient(900px 600px at 110% 110%, #14223b 0%, transparent 60%),
         var(--bg);
       color:#e8eef8;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
       display:flex; align-items:center; justify-content:center; padding:32px;
     }
     .shell{ width:min(100%, 960px); }
+
+    /* Top Bar */
     .topbar{
-      display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;
+      display:flex; align-items:center; justify-content:space-between; 
+      margin-bottom:18px;
     }
     .topbar a{
-      color:#cfe2ff; text-decoration:none; font-weight:600; padding:8px 14px; border-radius:10px;
+      color:#cfe2ff; text-decoration:none; font-weight:600; padding:8px 14px; 
+      border-radius:10px;
       border:1px solid var(--ring);
+      margin-left:10px;
     }
     .topbar a:hover{ background:rgba(255,255,255,.05); }
 
@@ -71,17 +76,23 @@
     .muted{ color:var(--muted); }
   </style>
 </head>
+
 <body>
   <div class="shell">
+
+    <!-- Top bar -->
     <div class="topbar">
       <div class="muted">You’re signed in</div>
+
       <div class="actions">
+        <a href="/weather">Weather Dashboard</a>
         <a href="/logout">Log out</a>
       </div>
     </div>
 
     <div class="card">
-      <!-- Left: avatar + quick info -->
+
+      <!-- Left: Avatar section -->
       <aside class="side">
         <% if (user && user.photos && user.photos[0]) { %>
           <img class="avatar" src="<%= user.photos[0] %>" alt="avatar">
@@ -91,15 +102,17 @@
 
         <div class="name"><%= user?.displayName || 'User' %></div>
         <div class="provider <%= (user?.provider || '') %>">
-          <%= (user?.provider === 'google' ? 'Google' : user?.provider === 'linkedin' ? 'LinkedIn' : 'Provider') %>
+          <%= (user?.provider === 'google' ? 'Google' :
+               user?.provider === 'linkedin' ? 'LinkedIn' : 'Provider') %>
         </div>
       </aside>
 
-      <!-- Right: details -->
+      <!-- Right: User Details -->
       <section class="main">
         <div class="section">
           <h3>Account</h3>
           <div class="kv">
+
             <div class="muted">Display Name</div>
             <div><%= user?.displayName || '—' %></div>
 
@@ -108,12 +121,13 @@
               <% if (user && user.emails && user.emails.length) { %>
                 <%= user.emails.join(", ") %>
               <% } else { %>
-                <span class="muted">No email returned by provider</span>
+                <span class="muted">No email returned</span>
               <% } %>
             </div>
 
             <div class="muted">Provider</div>
             <div><%= user?.provider || '—' %></div>
+
           </div>
         </div>
 
@@ -127,6 +141,7 @@
             <div>Signed via OAuth</div>
           </div>
         </div>
+
       </section>
     </div>
   </div>
