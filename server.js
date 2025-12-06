@@ -31,6 +31,9 @@ const __dirname = path.dirname(__filename);
 // ======================
 const app = express();
 
+// ✅ Cloud Run / reverse proxy support
+app.set("trust proxy", 1);
+
 // Simple in-memory "DB" (demo only) for social-login users
 const users = new Map();
 
@@ -57,7 +60,10 @@ app.use(
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true }, // set secure:true in HTTPS
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+    },
   })
 );
 
@@ -70,15 +76,17 @@ app.use(passport.session());
 passport.serializeUser((user, done) => done(null, user._key));
 passport.deserializeUser((key, done) => done(null, users.get(key) || null));
 
-/* =================== GOOGLE (OAuth 2.0) =================== */
+/* =================== GOOGLE OAuth =================== */
 passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      callbackURL:
+        process.env.GOOGLE_CALLBACK_URL ||
+        "https://loginsystem-980856208139.us-central1.run.app/auth/google/callback",
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (_accessToken, _refreshToken, profile, done) => {
       try {
         const key = `google|${profile.id}`;
         const user = {
@@ -91,17 +99,14 @@ passport.use(
         };
         users.set(key, user);
         done(null, user);
-      } catch (e) {
-        done(e);
+      } catch (err) {
+        done(err);
       }
     }
   )
 );
 
-/* =================== LINKEDIN (OAuth2 + OIDC userinfo) =================== */
-/* Uses OAuth 2.0 to get an access token, then calls LinkedIn's OIDC userinfo.
-   Works with the "Sign in with LinkedIn using OpenID Connect" product,
-   and avoids strict ID token issuer checks. */
+/* =================== LINKEDIN OAuth =================== */
 passport.use(
   "linkedin",
   new OAuth2Strategy(
@@ -112,54 +117,38 @@ passport.use(
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
       callbackURL:
         process.env.LINKEDIN_CALLBACK_URL ||
-        "http://localhost:3000/auth/linkedin/callback",
-      // scopes are requested in the authenticate() call
+        "https://loginsystem-980856208139.us-central1.run.app/auth/linkedin/callback",
       state: true,
     },
-    // verify(accessToken, refreshToken, profile, done)
-    async (accessToken, refreshToken, _profile, done) => {
+    async (accessToken, _refreshToken, _profile, done) => {
       try {
-        // Fetch OIDC userinfo with the access token
         const resp = await fetch("https://api.linkedin.com/v2/userinfo", {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
 
         if (!resp.ok) {
-          const text = await resp.text();
           return done(
-            new Error(`LinkedIn userinfo failed: ${resp.status} ${text}`)
+            new Error(`LinkedIn userinfo failed: ${resp.status}`)
           );
         }
 
         const data = await resp.json();
-        // Expected fields: sub (id), name, given_name, family_name, email, picture, email_verified
-        const id = data.sub || data.id;
-        if (!id) return done(new Error("LinkedIn userinfo missing 'sub'"));
+        const id = data.sub;
+        if (!id) return done(new Error("LinkedIn userinfo missing sub"));
 
-        const displayName =
-          data.name ||
-          `${data.given_name || ""} ${data.family_name || ""}`.trim() ||
-          "LinkedIn User";
-
-        const emails = [];
-        if (data.email) emails.push(data.email);
-
-        const photos = [];
-        if (data.picture) photos.push(data.picture);
-
-        const key = `linkedin|${id}`;
         const user = {
-          _key: key,
+          _key: `linkedin|${id}`,
           provider: "linkedin",
           id,
-          displayName,
-          emails,
-          photos,
+          displayName: data.name || "LinkedIn User",
+          emails: data.email ? [data.email] : [],
+          photos: data.picture ? [data.picture] : [],
         };
-        users.set(key, user);
-        return done(null, user);
+
+        users.set(user._key, user);
+        done(null, user);
       } catch (err) {
-        return done(err);
+        done(err);
       }
     }
   )
@@ -174,20 +163,20 @@ function ensureAuthed(req, res, next) {
 }
 
 // ======================
+// Health check (CI/CD + Monitoring)
+// ======================
+app.get("/health", (_req, res) => res.status(200).send("ok"));
+
+// ======================
 // Routes (Pages)
 // ======================
 app.get("/", (req, res) => res.render("index", { user: req.user }));
-
-// Profile page
-app.get("/profile", ensureAuthed, (req, res) => {
-  res.render("profile", { user: req.user });
-});
-
-// Weather dashboard UI (only for logged-in users)
-app.get("/weather", ensureAuthed, (req, res) => {
-  res.render("weather", { user: req.user });
-});
-
+app.get("/profile", ensureAuthed, (req, res) =>
+  res.render("profile", { user: req.user })
+);
+app.get("/weather", ensureAuthed, (req, res) =>
+  res.render("weather", { user: req.user })
+);
 
 app.get("/logout", (req, res, next) => {
   req.logout((err) => {
@@ -197,78 +186,60 @@ app.get("/logout", (req, res, next) => {
 });
 
 // ---- Google ----
-app.get(
-  "/auth/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
-
+app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 app.get(
   "/auth/google/callback",
   passport.authenticate("google", { failureRedirect: "/error" }),
-  (req, res) => res.redirect("/profile")
+  (_req, res) => res.redirect("/profile")
 );
 
-// ---- LinkedIn (OAuth2 + userinfo) ----
+// ---- LinkedIn ----
 app.get(
   "/auth/linkedin",
   passport.authenticate("linkedin", { scope: ["openid", "profile", "email"] })
 );
 
-// Custom callback to surface any errors clearly
 app.get("/auth/linkedin/callback", (req, res, next) => {
-  passport.authenticate("linkedin", (err, user, info) => {
-    if (err) {
-      console.error("LinkedIn auth error:", err);
-      return res.status(500).render("error", { message: String(err) });
-    }
-    if (!user) {
-      console.error("LinkedIn auth failed:", info);
-      return res
-        .status(401)
-        .render("error", { message: (info && info.message) || "Login failed." });
+  passport.authenticate("linkedin", (err, user) => {
+    if (err || !user) {
+      return res.status(401).render("error", { message: "Login failed." });
     }
     req.logIn(user, (loginErr) => {
       if (loginErr) return next(loginErr);
-      return res.redirect("/profile");
+      res.redirect("/profile");
     });
   })(req, res, next);
 });
 
-app.get("/error", (req, res) =>
+app.get("/error", (_req, res) =>
   res.status(401).render("error", { message: "Login failed." })
 );
 
 // ======================
 // Weather API + Swagger
 // ======================
-
-// All /api/weather endpoints require login
 app.use("/api/weather", ensureAuthed, weatherRouter);
-
-// Swagger docs (public, for demo)
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // ======================
-// Start server + connect Mongo
+// Start server + Mongo
 // ======================
-const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
+const PORT = Number(process.env.PORT) || 8080;
+const MONGO_URI = process.env.MONGO_URI;
 
-(async () => {
-  try {
-    if (!MONGO_URI) {
-      throw new Error("Missing MONGO_URI or MONGODB_URI in .env");
+export default app;
+
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+  });
+
+  (async () => {
+    try {
+      await mongoose.connect(MONGO_URI);
+      console.log("✅ MongoDB connected");
+    } catch (err) {
+      console.error("⚠️ MongoDB connection failed:", err.message);
     }
-
-    await mongoose.connect(MONGO_URI);
-    console.log("✅ Connected to MongoDB");
-
-    app.listen(PORT, () => {
-      console.log(`✅ Server running on http://localhost:${PORT}`);
-      console.log(`📚 Swagger docs at http://localhost:${PORT}/docs`);
-    });
-  } catch (err) {
-    console.error("❌ Failed to start server:", err);
-    process.exit(1);
-  }
-})();
+  })();
+}

@@ -1,6 +1,7 @@
 // public/js/weather.js
 
-async function fetchJSON(url, options) {
+// ---- Shared helper used by both app + tests ----
+export async function fetchJSON(url, options) {
   const res = await fetch(url, options);
   if (!res.ok) {
     const text = await res.text();
@@ -9,6 +10,7 @@ async function fetchJSON(url, options) {
   return res.json();
 }
 
+// ---- Grab DOM elements ----
 const statusEl = document.getElementById("status");
 const latestCard = document.getElementById("latest-card");
 const latestCityEl = document.getElementById("latest-city");
@@ -30,14 +32,15 @@ function setStatus(message, type = "ok") {
 function renderLatest(record) {
   if (!record || !latestCard) return;
 
-  // Guess common field names – adjust if your schema uses different ones.
   const city = record.city || record.name || "Unknown city";
+
   const temp =
     record.temperature ??
     record.tempC ??
     record.temp ??
     (record.main && record.main.temp) ??
     null;
+
   const condition =
     record.conditions ||
     record.description ||
@@ -53,7 +56,7 @@ function renderLatest(record) {
 
   latestCityEl.textContent = city;
   latestTempEl.textContent =
-    temp !== null ? `${Math.round(temp)}°` : "N/A";
+    temp !== null && temp !== undefined ? `${Math.round(temp)}°` : "N/A";
   latestCondEl.textContent = condition || "";
   latestMetaEl.textContent = fetched
     ? `Fetched at: ${new Date(fetched).toLocaleString()}`
@@ -64,6 +67,8 @@ function renderLatest(record) {
 
 // Render the table rows
 function renderHistory(records) {
+  if (!historyBody) return;
+
   historyBody.innerHTML = "";
   if (!records || records.length === 0) {
     const tr = document.createElement("tr");
@@ -106,7 +111,7 @@ function renderHistory(records) {
 
     const tempTd = document.createElement("td");
     tempTd.textContent =
-      temp !== null ? `${Math.round(temp)}°` : "N/A";
+      temp !== null && temp !== undefined ? `${Math.round(temp)}°` : "N/A";
 
     const condTd = document.createElement("td");
     condTd.textContent = condition;
@@ -198,7 +203,6 @@ async function deleteWeather(id) {
 async function refreshWeather(id, city) {
   try {
     setStatus("Refreshing weather for " + city + "...");
-    // Simple approach: delete old record + create a new one via fetch endpoint
     await fetchJSON(`/api/weather/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
@@ -215,8 +219,17 @@ async function refreshWeather(id, city) {
   }
 }
 
-// Wire up events on page load
+// Wire up events on page load (real app behaviour)
 if (searchForm) {
   searchForm.addEventListener("submit", handleSearch);
 }
 document.addEventListener("DOMContentLoaded", loadHistory);
+
+// ---- Exports for Jest tests ----
+export {
+  setStatus,
+  renderLatest,
+  renderHistory,
+  handleSearch,
+  deleteWeather,
+};
