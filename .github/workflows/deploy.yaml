@@ -21,8 +21,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ✅ FIX: Provide Mongo URI to tests
       - name: Run tests
         run: npm test
+        env:
+          NODE_ENV: test
+          MONGO_URI: ${{ secrets.MONGO_URI }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -34,10 +38,12 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      # ✅ FIX: Provide Mongo URI + env vars to Cloud Run
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy loginsystem \
             --source . \
             --region ${{ secrets.GCP_REGION }} \
             --platform managed \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-env-vars NODE_ENV=production,MONGO_URI=${{ secrets.MONGO_URI }}
