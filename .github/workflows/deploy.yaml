@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ✅ FIX: Provide Mongo URI to tests
+      # ✅ Mongo URI is ONLY for tests (GitHub runner)
       - name: Run tests
         run: npm test
         env:
@@ -38,7 +38,8 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # ✅ FIX: Provide Mongo URI + env vars to Cloud Run
+      # ✅ Deploy WITHOUT setting MONGO_URI
+      # Cloud Run already has it via Secret Manager
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy loginsystem \
@@ -46,4 +47,4 @@ jobs:
             --region ${{ secrets.GCP_REGION }} \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars NODE_ENV=production,MONGO_URI=${{ secrets.MONGO_URI }}
+            --set-env-vars NODE_ENV=production
